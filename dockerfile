@@ -1,0 +1,17 @@
+FROM --platform=linux/amd64 node:20-bookworm-slim
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+  bash \
+  ca-certificates \
+  curl \
+  git \
+ && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /workspace
+
+COPY apax.tgz .
+
+RUN npm install -g ./apax.tgz
+CMD ["bash"]
