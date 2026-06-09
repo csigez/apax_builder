@@ -1,39 +1,39 @@
 
 # SIMATIC AX / APAX Builder Container
 
-This repository contains a small Docker image you can use as a repeatable build environment for **SIMATIC AX / APAX** projects.
+Docker image for building **SIMATIC AX / APAX** projects in a reproducible Linux environment.
 
-The image is intended to:
+## What's inside the image
 
-- provide a minimal Linux environment with **Node.js** and **bash**
-- include the **APAX CLI** (installed from the local `apax.tgz`)
-- run as **Linux x64 (`linux/amd64`)**, so you get consistent behavior across hosts (including Apple Silicon)
+Based on `node:20-bookworm-slim`, pinned to `linux/amd64`:
 
-## What’s inside the image
-
-The Dockerfile is based on `node:20-bookworm-slim` and installs a few small utilities commonly needed during builds:
-
-- `bash`
-- `curl`
-- `git`
-- `ca-certificates`
-- `python3` + `pip` (required for Conan)
-
-It also:
-
-- sets the working directory to `/workspace`
-- copies `apax.tgz` into the image and installs it via `npm install -g`
-- installs **Conan 2** via pip
-- runs `entrypoint.sh` on startup to auto-configure the Conan remote
+| Component | Details |
+|---|---|
+| **APAX CLI** | Installed from local `apax.tgz`, updated via `apax self-update` at build time |
+| **Conan 2** | Installed via `pip3`; remotes pre-configured from `remotes.json` |
+| **Tools** | `bash`, `curl`, `git`, `ca-certificates`, `python3`, `pip` |
+| **Working directory** | `/workspace` |
 
 ## Prerequisites
 
-- Docker (Docker Desktop is fine)
-- `apax.tgz` present in this repository (the Dockerfile expects it)
+- Docker (Docker Desktop works)
+- `apax.tgz` present in this directory (gitignored, must be provided locally)
+
+## Conan remotes
+
+Remotes are defined in `remotes.json` and registered into the image at build time:
+
+```json
+{
+  "remotes": [
+    { "name": "<remote-name>", "url": "https://<company>.jfrog.io/artifactory/api/conan/<repo>", "verify_ssl": true }
+  ]
+}
+```
+
+To add or remove remotes, edit `remotes.json` and rebuild the image.
 
 ## Build the image
-
-From this repository directory:
 
 ```bash
 docker build -f dockerfile -t simatic-ax-builder .
@@ -41,52 +41,46 @@ docker build -f dockerfile -t simatic-ax-builder .
 
 ## Run an interactive shell
 
-Mount your project into `/workspace` and pass in the credentials from `.env`:
+Copy `.env_template` to `.env`, fill in your credentials, then:
 
 ```bash
 docker run --rm -it --env-file .env -v "$PWD:/workspace" simatic-ax-builder
 ```
 
-You should land in a shell where you can run:
-
-```bash
-apax -h
-```
-
-## Running on Apple Silicon (M1/M2/M3)
-
-The Dockerfile pins the image to `linux/amd64`. Docker Desktop will run it via emulation.
-
-If you still see a platform warning at runtime, you can force the platform explicitly:
+On Apple Silicon, if you see a platform warning:
 
 ```bash
 docker run --platform=linux/amd64 --rm -it --env-file .env -v "$PWD:/workspace" simatic-ax-builder
 ```
 
-## Conan / JFrog Artifactory
+## Environment variables (`.env`)
 
-The container includes **Conan 2** and configures a remote automatically on startup if the following variables are set in `.env`:
+`.env` is gitignored. Use `.env_template` as a starting point.
+
+### Conan / JFrog Artifactory
 
 | Variable | Description |
 |---|---|
-| `CONAN_REMOTE_NAME` | Logical name of the remote, e.g. `artifactory` |
-| `CONAN_REMOTE_URL` | Full URL, e.g. `https://<company>.jfrog.io/artifactory/api/conan/<repo>` |
 | `CONAN_USER` | JFrog username or e-mail |
 | `CONAN_PASSWORD` | JFrog API key or password |
 
-Fill these in `.env` (already gitignored) before running the container. The `entrypoint.sh` script calls `conan remote add` and `conan remote login` automatically so you can immediately run `conan install` inside the container.
+On startup, `entrypoint.sh` calls `conan remote login` for every remote in `/remotes.json` automatically.
 
-## Notes / common issues
+### pip / PyPI (JFrog Artifactory)
 
-### Registry configuration for `@ax` scope
+| Variable | Description |
+|---|---|
+| `PIP_EXTRA_INDEX_HOST` | Host + path of the Artifactory PyPI repo, e.g. `<company>.jfrog.io/artifactory/api/pypi/<repo>/simple` |
+| `PIP_EXTRA_INDEX_USER` | JFrog username or e-mail |
+| `PIP_EXTRA_INDEX_TOKEN` | JFrog API key or password |
 
-If you see an error like:
+When set, `entrypoint.sh` writes `/root/.config/pip/pip.conf` so `pip install` resolves from both PyPI and the private index.
 
-> No registry found for scope @ax. Please add a registry to the apax.yml or global config.
+## Notes
 
-you need to configure an APAX registry for your project or your global APAX config.
+### `@ax` scope error
 
-Typical next steps inside the container:
+If you see `No registry found for scope @ax`, configure the APAX registry inside the container:
 
 ```bash
 apax config
@@ -97,5 +91,4 @@ apax login
 
 1. Build the image.
 2. Run the container with your project mounted into `/workspace`.
-3. Run APAX commands inside the container, e.g. `apax install`, `apax run ...`, etc.
-
+3. Run APAX commands inside the container, e.g. `apax install`, `apax run build`, etc.

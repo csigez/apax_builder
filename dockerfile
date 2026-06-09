@@ -14,10 +14,13 @@ RUN apt-get update \
 
 WORKDIR /workspace
 
+COPY remotes.json /remotes.json
 COPY apax.tgz .
 COPY entrypoint.sh /entrypoint.sh
 
-RUN npm install -g ./apax.tgz \
+RUN python3 -c "import json,subprocess; [subprocess.run(['conan','remote','add',r['name'],r['url']],check=True) for r in json.load(open('/remotes.json'))['remotes']]" \
+ && npm install -g ./apax.tgz \
+ && apax self-update \
  && chmod +x /entrypoint.sh
 
 ENTRYPOINT ["/entrypoint.sh"]
