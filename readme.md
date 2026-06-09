@@ -17,11 +17,14 @@ The Dockerfile is based on `node:20-bookworm-slim` and installs a few small util
 - `curl`
 - `git`
 - `ca-certificates`
+- `python3` + `pip` (required for Conan)
 
 It also:
 
 - sets the working directory to `/workspace`
 - copies `apax.tgz` into the image and installs it via `npm install -g`
+- installs **Conan 2** via pip
+- runs `entrypoint.sh` on startup to auto-configure the Conan remote
 
 ## Prerequisites
 
@@ -38,10 +41,10 @@ docker build -f dockerfile -t simatic-ax-builder .
 
 ## Run an interactive shell
 
-Mount your project into `/workspace`:
+Mount your project into `/workspace` and pass in the credentials from `.env`:
 
 ```bash
-docker run --rm -it -v "$PWD:/workspace" simatic-ax-builder
+docker run --rm -it --env-file .env -v "$PWD:/workspace" simatic-ax-builder
 ```
 
 You should land in a shell where you can run:
@@ -57,8 +60,21 @@ The Dockerfile pins the image to `linux/amd64`. Docker Desktop will run it via e
 If you still see a platform warning at runtime, you can force the platform explicitly:
 
 ```bash
-docker run --platform=linux/amd64 --rm -it -v "$PWD:/workspace" simatic-ax-builder
+docker run --platform=linux/amd64 --rm -it --env-file .env -v "$PWD:/workspace" simatic-ax-builder
 ```
+
+## Conan / JFrog Artifactory
+
+The container includes **Conan 2** and configures a remote automatically on startup if the following variables are set in `.env`:
+
+| Variable | Description |
+|---|---|
+| `CONAN_REMOTE_NAME` | Logical name of the remote, e.g. `artifactory` |
+| `CONAN_REMOTE_URL` | Full URL, e.g. `https://<company>.jfrog.io/artifactory/api/conan/<repo>` |
+| `CONAN_USER` | JFrog username or e-mail |
+| `CONAN_PASSWORD` | JFrog API key or password |
+
+Fill these in `.env` (already gitignored) before running the container. The `entrypoint.sh` script calls `conan remote add` and `conan remote login` automatically so you can immediately run `conan install` inside the container.
 
 ## Notes / common issues
 

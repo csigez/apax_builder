@@ -2,3 +2,6 @@ src
 apax.tgz
 apax.zip
 .DS_Store
+.env
+
+CLAUDE.md
